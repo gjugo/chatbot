@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref } from 'vue'
+import { v4 as uuidv4 } from 'uuid'
 
 interface Message {
   text: string
@@ -13,8 +14,9 @@ const messages = ref<Message[]>([
 ])
 const newMessage = ref('')
 const fileInput = ref<HTMLInputElement | null>(null)
+const threadId = ref(uuidv4())  // Generate a unique thread ID for this session
 
-const sendMessage = () => {
+const sendMessage = async () => {
   if (newMessage.value.trim()) {
     // Add user message
     messages.value.push({
@@ -22,13 +24,37 @@ const sendMessage = () => {
       isUser: true
     })
     
-    // Simulate bot response
-    setTimeout(() => {
+    try {
+      const response = await fetch('http://localhost:3000/chat', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          message: newMessage.value,
+          thread_id: threadId.value
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Network response was not ok');
+      }
+
+      const data = await response.json();
+      
+      // Add bot response - data.messages[0] contains the formatted message
+      if (data.messages && data.messages[0]) {
+        messages.value.push(data.messages[0]);
+      } else {
+        throw new Error('Invalid response format');
+      }
+    } catch (error) {
+      console.error('Error sending message:', error);
       messages.value.push({
-        text: `I received your message: "${newMessage.value}"`,
+        text: 'Sorry, there was an error sending your message. Please try again.',
         isUser: false
-      })
-    }, 1000)
+      });
+    }
     
     newMessage.value = ''
   }
